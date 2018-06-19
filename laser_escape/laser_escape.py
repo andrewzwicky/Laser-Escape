@@ -60,11 +60,13 @@ NAME_BUTTON_PRESSED = False
 def name_entry_press_loop(_):
     global NAME_BUTTON_PRESSED
     NAME_BUTTON_PRESSED = True
+    print("NAME_BUTTON_PRESSED")
 
 
 def timer_button_press_loop(_):
     global TIMER_BUTTON_PRESSED
     TIMER_BUTTON_PRESSED = True
+    print("TIMER_BUTTON_PRESSED")
 
 
 def setup():
@@ -161,9 +163,10 @@ def logic_loop():
     runner_name = ""
     start_time = None
     previous_record = get_best_record()
-    print(program_state)
 
     while True:
+        #print(program_state)
+
         if program_state == ProgramState.IDLE:
             if previous_state != ProgramState.IDLE:
                 lcd.set_color(*WHITE)
