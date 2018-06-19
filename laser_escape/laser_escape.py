@@ -4,6 +4,7 @@ import datetime
 import os
 import time
 from enum import Enum
+import threading
 
 import RPi.GPIO as GPIO
 from Adafruit_CharLCD import Adafruit_CharLCDPlate
@@ -99,7 +100,7 @@ def high_level_loop():
     setup()
 
     try:
-        logic_loop()
+        threading.Thread(target=logic_loop).start()
     finally:
         GPIO.cleanup()
 
@@ -159,6 +160,7 @@ def logic_loop():
     runner_name = ""
     start_time = None
     previous_record = get_best_record()
+    print(program_state)
 
     while True:
         if program_state == ProgramState.IDLE:
