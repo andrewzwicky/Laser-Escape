@@ -103,7 +103,10 @@ def high_level_loop():
 
     try:
         threading.Thread(target=logic_loop).start()
+        while True:
+            time.sleep(100)
     finally:
+        print("finally")
         GPIO.cleanup()
 
 
@@ -165,8 +168,8 @@ def logic_loop():
     previous_record = get_best_record()
 
     while True:
-        #print(program_state)
-
+        if program_state != previous_state:
+            print("{0}->{1}".format(previous_state, program_state))
         if program_state == ProgramState.IDLE:
             if previous_state != ProgramState.IDLE:
                 lcd.set_color(*WHITE)
@@ -189,6 +192,7 @@ def logic_loop():
         elif program_state == ProgramState.TIMING:
             if previous_state != ProgramState.TIMING:
                 lcd.set_color(*GREEN)
+                start_time = time.time()
 
             lcd.set_cursor(*START_TOP_ROW)
             lcd.message(format_time(time.time() - start_time))
@@ -202,15 +206,8 @@ def logic_loop():
                 just_finished_init(last_duration, lcd, runner_name)
                 write_attempt_to_file(runner_name, last_duration)
 
-                if previous_record is None or last_duration < previous_record:
-                    next_state = ProgramState.NEW_RECORD
-                    previous_record = last_duration
-
             if NAME_BUTTON_PRESSED:
                 next_state = ProgramState.NAME_ENTRY
-
-        elif program_state == ProgramState.NEW_RECORD:
-            next_state = ProgramState.IDLE
 
         previous_state = program_state
         program_state = next_state
