@@ -16,7 +16,7 @@ LDR_PINS = [18, 24, 12, 19, 5, 16, 23, 26, 13]
 TIMER_BUTTON_PIN = 20
 NAME_ENTRY_BUTTON_PIN = 21
 
-LDR_THRESHOLD = 0.2
+LDR_THRESHOLD = 0.25
 
 COLORS = ['WHITE', 'BROWN', 'GRAY', 'GREEN', 'RED', 'YELLOW', 'PURPLE', 'BLUE', 'ORANGE']
 COLORS_DICT = {pin: color for pin, color in zip(LDR_PINS, COLORS)}
@@ -40,7 +40,7 @@ START_BOTTOM_ROW = (0, 1)
 
 TIMING_UPDATE_DELAY = 0.1
 NEW_RECORD_DELAY = 0.25
-LDR_QUERY_DELAY = 0.5
+LDR_QUERY_DELAY = 0.05
 LASER_BREAK_DEBOUNCE = 5
 
 RESULTS_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'times.csv')
@@ -117,7 +117,8 @@ def name_entry(lcd):
     lcd.set_color(*WHITE)
     lcd.message("NAME?\n")
 
-    runner_name = ''
+    runner_name = 'test'
+    return runner_name
 
     while True:
         last_key = getch()
@@ -164,9 +165,10 @@ def logic_loop(light_sensors):
     setup()
 
     lcd = Adafruit_CharLCDPlate()
-    program_state = ProgramState.IDLE
-    next_state = ProgramState.IDLE
-    previous_state = None
+    lcd.create_char(1, [0,31,31,31,31,31,0,0])
+    program_state = ProgramState.TIMING
+    next_state = ProgramState.TIMING
+    previous_state = ProgramState.READY_TO_GO
     runner_name = ""
     start_time = None
     laser_times = [0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -176,7 +178,8 @@ def logic_loop(light_sensors):
         if program_state == ProgramState.IDLE:
             if previous_state != ProgramState.IDLE:
                 lcd.set_color(*WHITE)
-                lcd.message("READY FOR FIRST RUNNER")
+                lcd.message("READY FOR")
+                lcd.message("\nFIRST RUNNER")
 
             if NAME_BUTTON_PRESSED:
                 next_state = ProgramState.NAME_ENTRY
@@ -197,17 +200,24 @@ def logic_loop(light_sensors):
                 lcd.set_color(*GREEN)
                 start_time = time.time()
 
-            beams_broken = [sensor.value <= LDR_THRESHOLD for sensor in light_sensors]
-            for i, (broken, laser_time) in enumerate(zip(beams_broken, laser_times)):
-                if broken and laser_time <= 0:
-                    laser_times[i] = LASER_BREAK_DEBOUNCE
-                else:
-                    laser_times[i] -= LDR_QUERY_DELAY
-            print(laser_times)
-            time.sleep(LDR_QUERY_DELAY)
+            vals = [sensor.value for sensor in light_sensors]
+            beams_broken = [val <= LDR_THRESHOLD for val in vals]
+#            for i, (broken, laser_time) in enumerate(zip(beams_broken, laser_times)):
+#                if broken and laser_time <= 0:
+#                    laser_times[i] = LASER_BREAK_DEBOUNCE
+#                else:
+#                    laser_times[i] -= LDR_QUERY_DELAY
+#                    laser_times[i] = min(0, laser_times[i])
+            print({c:'{0:<.2f}'.format(v) for c,v in zip(COLORS, vals)})
+            #time.sleep(LDR_QUERY_DELAY)
 
             lcd.set_cursor(*START_TOP_ROW)
             lcd.message(format_time(time.time() - start_time))
+            for broken in beams_broken:
+                if broken:
+                    lcd.message('\x01')
+                else:
+                    lcd.message(' ')
 
             if TIMER_BUTTON_PRESSED:
                 last_duration = time.time() - start_time
