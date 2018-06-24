@@ -168,7 +168,6 @@ def logic_loop(light_sensors):
     previous_state = None
     runner_name = ""
     start_time = None
-    #previous_record = get_best_record()
     laser_times = [0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     while True:
@@ -198,7 +197,8 @@ def logic_loop(light_sensors):
                 lcd.set_color(*GREEN)
                 start_time = time.time()
 
-            #beams_broken = [sensor.value <= LDR_THRESHOLD for sensor in light_sensors]
+            beams_broken = [sensor.value <= LDR_THRESHOLD for sensor in light_sensors]
+            print(beams_broken)
             #for i, (broken, laser_time) in enumerate(zip(beams_broken, laser_times)):
             #    if broken and laser_time <= 0:
             #        laser_times[i] = LASER_BREAK_DEBOUNCE
