@@ -9,16 +9,17 @@ import threading
 import RPi.GPIO as GPIO
 from Adafruit_CharLCD import Adafruit_CharLCDPlate
 from getch import getch
+from gpiozero import LightSensor
 
 BUZZER_PIN = 23
-# LDR_PINS = [26, 19, 13, 16, 6, 27, 17, 4, 21]
+LDR_PINS = [18, 24, 12, 19, 5, 16, 23, 26, 13]
 TIMER_BUTTON_PIN = 20
 NAME_ENTRY_BUTTON_PIN = 21
 
 LDR_THRESHOLD = 0.2
 
-# COLORS = ['WHITE','BROWN', 'GRAY', 'GREEN', 'RED', 'YELLOW', 'PURPLE', 'BLUE','ORANGE']
-# COLORS_DICT = {pin:color for pin,color in zip(LDR_PINS, COLORS)}
+COLORS = ['WHITE', 'BROWN', 'GRAY', 'GREEN', 'RED', 'YELLOW', 'PURPLE', 'BLUE', 'ORANGE']
+COLORS_DICT = {pin: color for pin, color in zip(LDR_PINS, COLORS)}
 
 """
 Wiring:
@@ -39,7 +40,8 @@ START_BOTTOM_ROW = (0, 1)
 
 TIMING_UPDATE_DELAY = 0.1
 NEW_RECORD_DELAY = 0.25
-LDR_QUERY_DELAY = 0.005
+LDR_QUERY_DELAY = 0.5
+LASER_BREAK_DEBOUNCE = 5
 
 RESULTS_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'times.csv')
 
@@ -55,6 +57,22 @@ class ProgramState(Enum):
 
 TIMER_BUTTON_PRESSED = False
 NAME_BUTTON_PRESSED = False
+LASER_TIMES = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+
+def laser_loop():
+    global LASER_TIMES
+    light_sensors = [LightSensor(pin) for pin in LDR_PINS]
+
+    while True:
+        beams_broken = [sensor.value <= LDR_THRESHOLD for sensor in light_sensors]
+        for i, (broken, laser_time) in enumerate(zip(beams_broken, LASER_TIMES)):
+            if broken and laser_time <= 0:
+                LASER_TIMES[i] = LASER_BREAK_DEBOUNCE
+            else:
+                LASER_TIMES[i] -= LDR_QUERY_DELAY
+        print(LASER_TIMES)
+        time.sleep(LDR_QUERY_DELAY)
 
 
 def name_entry_press_loop(_):
@@ -69,9 +87,7 @@ def timer_button_press_loop(_):
     print("TIMER_BUTTON_PRESSED")
 
 
-def setup():
-    GPIO.setmode(GPIO.BCM)
-
+def timer_setup():
     GPIO.setup(TIMER_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(NAME_ENTRY_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(BUZZER_PIN, GPIO.OUT)
@@ -99,10 +115,9 @@ def get_best_record():
 
 
 def high_level_loop():
-    setup()
-
     try:
         threading.Thread(target=logic_loop).start()
+        threading.Thread(target=laser_loop).start()
         while True:
             time.sleep(100)
     finally:
@@ -158,6 +173,8 @@ def just_finished_init(last_duration, lcd, runner_name):
 def logic_loop():
     global TIMER_BUTTON_PRESSED
     global NAME_BUTTON_PRESSED
+
+    timer_setup()
 
     lcd = Adafruit_CharLCDPlate()
     program_state = ProgramState.IDLE
@@ -230,4 +247,5 @@ def write_attempt_to_file(runner_name, last_duration):
 
 
 if __name__ == "__main__":
+    GPIO.setmode(GPIO.BCM)
     high_level_loop()
