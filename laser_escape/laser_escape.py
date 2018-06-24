@@ -11,7 +11,7 @@ from Adafruit_CharLCD import Adafruit_CharLCDPlate
 from getch import getch
 from gpiozero import LightSensor
 
-BUZZER_PIN = 23
+#BUZZER_PIN = 23
 LDR_PINS = [18, 24, 12, 19, 5, 16, 23, 26, 13]
 TIMER_BUTTON_PIN = 20
 NAME_ENTRY_BUTTON_PIN = 21
@@ -60,9 +60,8 @@ NAME_BUTTON_PRESSED = False
 LASER_TIMES = [0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 
-def laser_loop():
+def laser_loop(light_sensors):
     global LASER_TIMES
-    light_sensors = [LightSensor(pin) for pin in LDR_PINS]
 
     while True:
         beams_broken = [sensor.value <= LDR_THRESHOLD for sensor in light_sensors]
@@ -87,7 +86,8 @@ def timer_button_press_loop(_):
     print("TIMER_BUTTON_PRESSED")
 
 
-def timer_setup():
+def setup():
+    GPIO.setmode(GPIO.BCM)
     GPIO.setup(TIMER_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(NAME_ENTRY_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(BUZZER_PIN, GPIO.OUT)
@@ -102,6 +102,10 @@ def timer_setup():
                           callback=name_entry_press_loop,
                           bouncetime=250)
 
+    light_sensors = [LightSensor(pin) for pin in LDR_PINS]
+
+    return light_sensors
+
 
 def get_best_record():
     try:
@@ -115,8 +119,10 @@ def get_best_record():
 
 
 def high_level_loop():
+    light_sensors = setup()
+
     try:
-        threading.Thread(target=logic_loop).start()
+        threading.Thread(args=[light_sensors], target=logic_loop).start()
         threading.Thread(target=laser_loop).start()
         while True:
             time.sleep(100)
@@ -247,5 +253,4 @@ def write_attempt_to_file(runner_name, last_duration):
 
 
 if __name__ == "__main__":
-    GPIO.setmode(GPIO.BCM)
     high_level_loop()
