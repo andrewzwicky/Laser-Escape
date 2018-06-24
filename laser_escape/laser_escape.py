@@ -178,8 +178,6 @@ def logic_loop():
     global TIMER_BUTTON_PRESSED
     global NAME_BUTTON_PRESSED
 
-    timer_setup()
-
     lcd = Adafruit_CharLCDPlate()
     program_state = ProgramState.IDLE
     next_state = ProgramState.IDLE
@@ -252,5 +250,5 @@ def write_attempt_to_file(runner_name, last_duration):
 
 if __name__ == "__main__":
     light_sensors = setup()
-    
+
     high_level_loop(light_sensors)
