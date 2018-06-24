@@ -86,9 +86,9 @@ def setup():
                           callback=name_entry_press_loop,
                           bouncetime=250)
 
-    light_sensors = [LightSensor(pin) for pin in LDR_PINS]
+    #light_sensors = [LightSensor(pin) for pin in LDR_PINS]
 
-    return light_sensors
+    #return light_sensors
 
 
 def get_best_record():
@@ -102,9 +102,9 @@ def get_best_record():
         return None
 
 
-def high_level_loop():
+def high_level_loop(light_sensors):
     try:
-        threading.Thread(target=logic_loop).start()
+        threading.Thread(args=[light_sensors],target=logic_loop).start()
         while True:
             time.sleep(100)
     finally:
@@ -157,11 +157,11 @@ def just_finished_init(last_duration, lcd, runner_name):
     lcd.message(format_time(last_duration))
 
 
-def logic_loop():
+def logic_loop(light_sensors):
     global TIMER_BUTTON_PRESSED
     global NAME_BUTTON_PRESSED
 
-    light_sensors = setup()
+    setup()
 
     lcd = Adafruit_CharLCDPlate()
     program_state = ProgramState.IDLE
@@ -170,7 +170,6 @@ def logic_loop():
     runner_name = ""
     start_time = None
     laser_times = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-
     while True:
         if program_state != previous_state:
             print("{0}->{1}".format(previous_state, program_state))
@@ -199,14 +198,13 @@ def logic_loop():
                 start_time = time.time()
 
             beams_broken = [sensor.value <= LDR_THRESHOLD for sensor in light_sensors]
-            print(beams_broken)
-            #for i, (broken, laser_time) in enumerate(zip(beams_broken, laser_times)):
-            #    if broken and laser_time <= 0:
-            #        laser_times[i] = LASER_BREAK_DEBOUNCE
-            #    else:
-            #        laser_times[i] -= LDR_QUERY_DELAY
-            #print(laser_times)
-            #time.sleep(LDR_QUERY_DELAY)
+            for i, (broken, laser_time) in enumerate(zip(beams_broken, laser_times)):
+                if broken and laser_time <= 0:
+                    laser_times[i] = LASER_BREAK_DEBOUNCE
+                else:
+                    laser_times[i] -= LDR_QUERY_DELAY
+            print(laser_times)
+            time.sleep(LDR_QUERY_DELAY)
 
             lcd.set_cursor(*START_TOP_ROW)
             lcd.message(format_time(time.time() - start_time))
@@ -244,4 +242,6 @@ def write_attempt_to_file(runner_name, last_duration):
 
 
 if __name__ == "__main__":
-    high_level_loop()
+    GPIO.setmode(GPIO.BCM)
+    light_sensors = [LightSensor(pin) for pin in LDR_PINS]
+    high_level_loop(light_sensors)
