@@ -45,8 +45,6 @@ LASER_BREAK_DEBOUNCE = 5
 
 RESULTS_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'times.csv')
 
-GPIO.setmode(GPIO.BCM)
-
 class ProgramState(Enum):
     IDLE = 0
     NAME_ENTRY = 1
@@ -73,6 +71,7 @@ def timer_button_press_loop(_):
 
 
 def setup():
+    GPIO.setmode(GPIO.BCM)
     GPIO.setup(TIMER_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(NAME_ENTRY_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     #GPIO.setup(BUZZER_PIN, GPIO.OUT)
@@ -103,9 +102,9 @@ def get_best_record():
         return None
 
 
-def high_level_loop(light_sensors):
+def high_level_loop():
     try:
-        threading.Thread(args=[light_sensors], target=logic_loop).start()
+        threading.Thread(target=logic_loop).start()
         while True:
             time.sleep(100)
     finally:
@@ -158,9 +157,11 @@ def just_finished_init(last_duration, lcd, runner_name):
     lcd.message(format_time(last_duration))
 
 
-def logic_loop(light_sensors):
+def logic_loop():
     global TIMER_BUTTON_PRESSED
     global NAME_BUTTON_PRESSED
+
+    light_sensors = setup()
 
     lcd = Adafruit_CharLCDPlate()
     program_state = ProgramState.IDLE
@@ -243,5 +244,4 @@ def write_attempt_to_file(runner_name, last_duration):
 
 
 if __name__ == "__main__":
-    light_sensors = setup()
-    high_level_loop(light_sensors)
+    high_level_loop()
