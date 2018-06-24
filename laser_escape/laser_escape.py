@@ -45,6 +45,7 @@ LASER_BREAK_DEBOUNCE = 5
 
 RESULTS_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'times.csv')
 
+GPIO.setmode(GPIO.BCM)
 
 class ProgramState(Enum):
     IDLE = 0
@@ -72,7 +73,6 @@ def timer_button_press_loop(_):
 
 
 def setup():
-    GPIO.setmode(GPIO.BCM)
     GPIO.setup(TIMER_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(NAME_ENTRY_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     #GPIO.setup(BUZZER_PIN, GPIO.OUT)
@@ -244,5 +244,4 @@ def write_attempt_to_file(runner_name, last_duration):
 
 if __name__ == "__main__":
     light_sensors = setup()
-
     high_level_loop(light_sensors)
