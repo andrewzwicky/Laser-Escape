@@ -118,9 +118,7 @@ def get_best_record():
         return None
 
 
-def high_level_loop():
-    light_sensors = setup()
-
+def high_level_loop(light_sensors):
     try:
         threading.Thread(args=[light_sensors], target=laser_loop).start()
         threading.Thread(target=logic_loop()).start()
@@ -253,4 +251,6 @@ def write_attempt_to_file(runner_name, last_duration):
 
 
 if __name__ == "__main__":
-    high_level_loop()
+    light_sensors = setup()
+    
+    high_level_loop(light_sensors)
