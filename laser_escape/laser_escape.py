@@ -122,8 +122,8 @@ def high_level_loop():
     light_sensors = setup()
 
     try:
-        threading.Thread(args=[light_sensors], target=logic_loop).start()
-        threading.Thread(target=laser_loop).start()
+        threading.Thread(args=[light_sensors], target=laser_loop).start()
+        threading.Thread(target=logic_loop()).start()
         while True:
             time.sleep(100)
     finally:
