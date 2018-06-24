@@ -90,7 +90,7 @@ def setup():
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(TIMER_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(NAME_ENTRY_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(BUZZER_PIN, GPIO.OUT)
+    #GPIO.setup(BUZZER_PIN, GPIO.OUT)
 
     GPIO.add_event_detect(TIMER_BUTTON_PIN,
                           GPIO.BOTH,
