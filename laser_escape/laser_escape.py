@@ -57,21 +57,6 @@ class ProgramState(Enum):
 
 TIMER_BUTTON_PRESSED = False
 NAME_BUTTON_PRESSED = False
-LASER_TIMES = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-
-
-def laser_loop(light_sensors):
-    global LASER_TIMES
-
-    while True:
-        beams_broken = [sensor.value <= LDR_THRESHOLD for sensor in light_sensors]
-        for i, (broken, laser_time) in enumerate(zip(beams_broken, LASER_TIMES)):
-            if broken and laser_time <= 0:
-                LASER_TIMES[i] = LASER_BREAK_DEBOUNCE
-            else:
-                LASER_TIMES[i] -= LDR_QUERY_DELAY
-        print(LASER_TIMES)
-        time.sleep(LDR_QUERY_DELAY)
 
 
 def name_entry_press_loop(_):
@@ -120,8 +105,7 @@ def get_best_record():
 
 def high_level_loop(light_sensors):
     try:
-        threading.Thread(args=[light_sensors], target=laser_loop).start()
-        threading.Thread(target=logic_loop()).start()
+        threading.Thread(args=[light_sensors], target=logic_loop).start()
         while True:
             time.sleep(100)
     finally:
@@ -174,7 +158,7 @@ def just_finished_init(last_duration, lcd, runner_name):
     lcd.message(format_time(last_duration))
 
 
-def logic_loop():
+def logic_loop(light_sensors):
     global TIMER_BUTTON_PRESSED
     global NAME_BUTTON_PRESSED
 
@@ -184,7 +168,8 @@ def logic_loop():
     previous_state = None
     runner_name = ""
     start_time = None
-    previous_record = get_best_record()
+    #previous_record = get_best_record()
+    laser_times = [0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     while True:
         if program_state != previous_state:
@@ -212,6 +197,15 @@ def logic_loop():
             if previous_state != ProgramState.TIMING:
                 lcd.set_color(*GREEN)
                 start_time = time.time()
+
+            beams_broken = [sensor.value <= LDR_THRESHOLD for sensor in light_sensors]
+            for i, (broken, laser_time) in enumerate(zip(beams_broken, laser_times)):
+                if broken and laser_time <= 0:
+                    laser_times[i] = LASER_BREAK_DEBOUNCE
+                else:
+                    laser_times[i] -= LDR_QUERY_DELAY
+            print(laser_times)
+            #time.sleep(LDR_QUERY_DELAY)
 
             lcd.set_cursor(*START_TOP_ROW)
             lcd.message(format_time(time.time() - start_time))
