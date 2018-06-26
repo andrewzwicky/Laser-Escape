@@ -86,9 +86,12 @@ def setup():
                           callback=name_entry_press_loop,
                           bouncetime=250)
 
-    #light_sensors = [LightSensor(pin) for pin in LDR_PINS]
 
-    #return light_sensors
+def laser_loop(light_sensors):
+    while True:
+        vals = [sensor.value for sensor in light_sensors]
+        print(['{0:<.3f}'.format(v) for v in vals])
+        time.sleep(LDR_QUERY_DELAY)
 
 
 def get_best_record():
@@ -104,7 +107,8 @@ def get_best_record():
 
 def high_level_loop(light_sensors):
     try:
-        threading.Thread(args=[light_sensors],target=logic_loop).start()
+        threading.Thread(args=[light_sensors],target=laser_loop).start()
+        threading.Thread(target=logic_loop).start()
         while True:
             time.sleep(100)
     finally:
@@ -158,7 +162,7 @@ def just_finished_init(last_duration, lcd, runner_name):
     lcd.message(format_time(last_duration))
 
 
-def logic_loop(light_sensors):
+def logic_loop():
     global TIMER_BUTTON_PRESSED
     global NAME_BUTTON_PRESSED
 
@@ -208,8 +212,8 @@ def logic_loop(light_sensors):
 #                else:
 #                    laser_times[i] -= LDR_QUERY_DELAY
 #                    laser_times[i] = min(0, laser_times[i])
-            print({c:'{0:<.2f}'.format(v) for c,v in zip(COLORS, vals)})
-            #time.sleep(LDR_QUERY_DELAY)
+#            print({c:'{0:<.2f}'.format(v) for c,v in zip(COLORS, vals)})
+            time.sleep(LDR_QUERY_DELAY)
 
             lcd.set_cursor(*START_TOP_ROW)
             lcd.message(format_time(time.time() - start_time))
