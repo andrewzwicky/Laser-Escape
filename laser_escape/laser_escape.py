@@ -170,10 +170,10 @@ def logic_loop():
 
     lcd = Adafruit_CharLCDPlate()
     lcd.create_char(1, [0,31,31,31,31,31,0,0])
-    program_state = ProgramState.IDLE
-    next_state = ProgramState.IDLE
-    previous_state = None
-    runner_name = ""
+    program_state = ProgramState.READY_TO_GO
+    next_state = ProgramState.READY_TO_GO
+    previous_state = ProgramState.NAME_ENTRY
+    runner_name = "test"
     start_time = None
     laser_times = [0, 0, 0, 0, 0, 0, 0, 0, 0]
     penalties = 0
@@ -232,7 +232,7 @@ def logic_loop():
             time.sleep(LDR_QUERY_DELAY)
 
             lcd.set_cursor(*START_TOP_ROW)
-            lcd.message(format_time(time.time() - start_time + (penalties * TRIP_TIME_PENALTY))
+            lcd.message(format_time(time.time() - start_time + (penalties * TRIP_TIME_PENALTY)))
 
             for broken in beams_broken:
                 if broken:
@@ -241,7 +241,7 @@ def logic_loop():
                     lcd.message(' ')
 
             if TIMER_BUTTON_PRESSED:
-                last_duration = time.time() - start_time
+                last_duration = time.time() - start_time + (penalties * TRIP_TIME_PENALTY)
                 next_state = ProgramState.JUST_FINISHED
 
         elif program_state == ProgramState.JUST_FINISHED:
