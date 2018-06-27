@@ -200,7 +200,10 @@ def logic_loop():
                 lcd.set_color(*GREEN)
                 start_time = time.time()
 
-            beams_broken, penalties = laser_beam_penalties(laser_times, light_sensors, penalties)
+            beams_broken, penalties, laser_times = laser_beam_penalties(laser_times,
+                                                                        light_sensors,
+                                                                        penalties,
+                                                                        time.time())
 
             if any(beams_broken):
                 lcd.set_color(*RED)
@@ -223,7 +226,7 @@ def logic_loop():
         elif program_state == ProgramState.JUST_FINISHED:
             if previous_state != ProgramState.JUST_FINISHED:
                 set_name_and_time(lcd, WHITE, runner_name, last_duration)
-                write_attempt_to_file(runner_name, last_duration)
+                write_attempt_to_file(runner_name, last_duration, penalties, TRIP_TIME_PENALTY)
 
             if NAME_BUTTON_PRESSED:
                 next_state = ProgramState.NAME_ENTRY
@@ -239,13 +242,15 @@ def format_time(duration: float):
     return str(datetime.timedelta(seconds=duration))[2:9]
 
 
-def write_attempt_to_file(runner_name, last_duration):
+def write_attempt_to_file(runner_name, last_duration, penalties, penalty_trip_time):
     with open(RESULTS_FILE, 'a') as times_file:
         run_writer = csv.writer(times_file)
         run_writer.writerow(
             [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
              runner_name,
-             last_duration])
+             last_duration,
+             penalties,
+             penalty_trip_time])
 
 
 if __name__ == "__main__":
