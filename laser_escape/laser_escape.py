@@ -11,12 +11,12 @@ from Adafruit_CharLCD import Adafruit_CharLCDPlate
 from getch import getch
 from gpiozero import LightSensor
 
-#BUZZER_PIN = 23
+BUZZER_PIN = 22
 LDR_PINS = [18, 24, 12, 19, 5, 16, 23, 26, 13]
 TIMER_BUTTON_PIN = 20
 NAME_ENTRY_BUTTON_PIN = 21
 
-LDR_THRESHOLD = 0.25
+LDR_THRESHOLD = 0.2
 
 COLORS = ['WHITE', 'BROWN', 'GRAY', 'GREEN', 'RED', 'YELLOW', 'PURPLE', 'BLUE', 'ORANGE']
 COLORS_DICT = {pin: color for pin, color in zip(LDR_PINS, COLORS)}
@@ -27,6 +27,7 @@ LDR - GPIO (LDR_PIN) to 3.3V (direction doesn't matter)
 CAPACITOR - GPIO (LDR_PIN) (long leg), GND (short leg)
 BUZZER - GPIO (OUTPUT_PIN) (long leg), GND (short leg)
 """
+
 
 RED = (1, 0, 0)
 GREEN = (0, 1, 0)
@@ -40,8 +41,10 @@ START_BOTTOM_ROW = (0, 1)
 
 TIMING_UPDATE_DELAY = 0.1
 NEW_RECORD_DELAY = 0.25
-LDR_QUERY_DELAY = 0.05
+LDR_QUERY_DELAY = 0.005
 LASER_BREAK_DEBOUNCE = 5
+TRIP_TIME_PENALTY = 10
+
 
 RESULTS_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'times.csv')
 
@@ -74,7 +77,7 @@ def setup():
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(TIMER_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(NAME_ENTRY_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    #GPIO.setup(BUZZER_PIN, GPIO.OUT)
+    GPIO.setup(BUZZER_PIN, GPIO.OUT)
 
     GPIO.add_event_detect(TIMER_BUTTON_PIN,
                           GPIO.BOTH,
@@ -90,7 +93,6 @@ def setup():
 def laser_loop(light_sensors):
     while True:
         vals = [sensor.value for sensor in light_sensors]
-        print(['{0:<.3f}'.format(v) for v in vals])
         time.sleep(LDR_QUERY_DELAY)
 
 
@@ -107,12 +109,10 @@ def get_best_record():
 
 def high_level_loop(light_sensors):
     try:
-        threading.Thread(args=[light_sensors],target=laser_loop).start()
         threading.Thread(target=logic_loop).start()
         while True:
             time.sleep(100)
     finally:
-        print("finally")
         GPIO.cleanup()
 
 
@@ -121,8 +121,7 @@ def name_entry(lcd):
     lcd.set_color(*WHITE)
     lcd.message("NAME?\n")
 
-    runner_name = 'test'
-    return runner_name
+    runner_name = ''
 
     while True:
         last_key = getch()
@@ -157,6 +156,7 @@ def ready_to_go_init(lcd, runner_name):
 
 def just_finished_init(last_duration, lcd, runner_name):
     lcd.clear()
+    lcd.set_color(*WHITE)
     lcd.message('\n' + runner_name)
     lcd.set_cursor(*START_TOP_ROW)
     lcd.message(format_time(last_duration))
@@ -170,20 +170,24 @@ def logic_loop():
 
     lcd = Adafruit_CharLCDPlate()
     lcd.create_char(1, [0,31,31,31,31,31,0,0])
-    program_state = ProgramState.TIMING
-    next_state = ProgramState.TIMING
-    previous_state = ProgramState.READY_TO_GO
+    program_state = ProgramState.IDLE
+    next_state = ProgramState.IDLE
+    previous_state = None
     runner_name = ""
     start_time = None
     laser_times = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+    penalties = 0
+
     while True:
         if program_state != previous_state:
             print("{0}->{1}".format(previous_state, program_state))
         if program_state == ProgramState.IDLE:
             if previous_state != ProgramState.IDLE:
                 lcd.set_color(*WHITE)
+                lcd.set_cursor(*START_TOP_ROW)
                 lcd.message("READY FOR")
-                lcd.message("\nFIRST RUNNER")
+                lcd.set_cursor(*START_BOTTOM_ROW)
+                lcd.message("FIRST RUNNER!")
 
             if NAME_BUTTON_PRESSED:
                 next_state = ProgramState.NAME_ENTRY
@@ -204,19 +208,32 @@ def logic_loop():
                 lcd.set_color(*GREEN)
                 start_time = time.time()
 
-            vals = [sensor.value for sensor in light_sensors]
-            beams_broken = [val <= LDR_THRESHOLD for val in vals]
-#            for i, (broken, laser_time) in enumerate(zip(beams_broken, laser_times)):
-#                if broken and laser_time <= 0:
-#                    laser_times[i] = LASER_BREAK_DEBOUNCE
-#                else:
-#                    laser_times[i] -= LDR_QUERY_DELAY
-#                    laser_times[i] = min(0, laser_times[i])
-#            print({c:'{0:<.2f}'.format(v) for c,v in zip(COLORS, vals)})
+            beams_broken = [sensor.value <= LDR_THRESHOLD for sensor in light_sensors]
+            if any(beams_broken):
+                lcd.set_color(*RED)
+                GPIO.output(BUZZER_PIN, True)
+            else:
+                lcd.set_color(*GREEN)
+                GPIO.output(BUZZER_PIN, False)                
+            
+            lasers_tripped = 0
+
+            for i, (broken, debounce_time) in enumerate(zip(beams_broken, laser_times)):
+                if broken and debounce_time <= 0:
+                    lasers_tripped += 1
+                    laser_times[i] = LASER_BREAK_DEBOUNCE
+                else:
+                    laser_times[i] -= LDR_QUERY_DELAY
+                    laser_times[i] = min(0, laser_times[i])
+
+            penalties += lasers_tripped
+            
+            print(laser_times)
             time.sleep(LDR_QUERY_DELAY)
 
             lcd.set_cursor(*START_TOP_ROW)
-            lcd.message(format_time(time.time() - start_time))
+            lcd.message(format_time(time.time() - start_time + (penalties * TRIP_TIME_PENALTY))
+
             for broken in beams_broken:
                 if broken:
                     lcd.message('\x01')
