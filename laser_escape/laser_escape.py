@@ -166,9 +166,9 @@ def logic_loop():
 
     runner_name = ''
     start_time = None
-    laser_times = [0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     penalties = 0
+    laser_times = [0 for _ in range(len(light_sensors))]
 
     while True:
         if program_state != previous_state:
@@ -192,6 +192,12 @@ def logic_loop():
             if previous_state != ProgramState.READY_TO_GO:
                 set_name_and_time(lcd, YELLOW, runner_name, 0)
 
+            # start executing lasers early, so there's not a big time penalty at the beginning
+            beams_broken, penalties, laser_times = laser_beam_penalties(laser_times,
+                                                                        light_sensors,
+                                                                        penalties,
+                                                                        time.time())
+
             if TIMER_BUTTON_PRESSED:
                 next_state = ProgramState.TIMING
 
@@ -199,6 +205,8 @@ def logic_loop():
             if previous_state != ProgramState.TIMING:
                 lcd.set_color(*GREEN)
                 start_time = time.time()
+                laser_times = [start_time for _ in range(len(light_sensors))]
+                penalties = 0
 
             beams_broken, penalties, laser_times = laser_beam_penalties(laser_times,
                                                                         light_sensors,
