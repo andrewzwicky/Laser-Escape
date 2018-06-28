@@ -42,7 +42,7 @@ START_TOP_ROW = (0, 0)
 START_BOTTOM_ROW = (0, 1)
 
 # Thresholds & Timers
-TRIP_TIME_PENALTY = 10
+TRIP_TIME_PENALTY = 5
 LDR_QUERY_DELAY = 0.005
 
 RESULTS_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'times.csv')
