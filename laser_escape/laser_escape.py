@@ -44,6 +44,7 @@ START_BOTTOM_ROW = (0, 1)
 # Thresholds & Timers
 TRIP_TIME_PENALTY = 5
 LDR_QUERY_DELAY = 0.005
+STARTUP_DELAY = 0.015
 
 RESULTS_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'times.csv')
 
@@ -142,13 +143,13 @@ def name_entry(lcd):
     return runner_name
 
 
-def set_name_and_time(lcd, color, runner_name, display_time):
+def set_display(lcd, color, top_row, bottom_row):
     lcd.clear()
     lcd.set_color(*color)
     lcd.set_cursor(*START_TOP_ROW)
-    lcd.message(format_time(display_time))
+    lcd.message(format_time(top_row))
     lcd.set_cursor(*START_BOTTOM_ROW)
-    lcd.message(runner_name)
+    lcd.message(bottom_row)
 
 
 def logic_loop():
@@ -158,14 +159,15 @@ def logic_loop():
     light_sensors = setup()
 
     lcd = Adafruit_CharLCDPlate()
-    lcd.create_char(1, [0, 31, 31, 31, 31, 31, 0, 0])
 
-    program_state = ProgramState.READY_TO_GO
-    next_state = ProgramState.READY_TO_GO
-    previous_state = ProgramState.NAME_ENTRY
+    program_state = ProgramState.IDLE
+    next_state = ProgramState.IDLE
+    previous_state = None
 
-    runner_name = ''
     start_time = None
+
+    raw_duration = 0
+    duration = 0
 
     penalties = 0
     laser_times = [0 for _ in range(len(light_sensors))]
@@ -173,13 +175,10 @@ def logic_loop():
     while True:
         if program_state != previous_state:
             print("{0}->{1}".format(previous_state, program_state))
+
         if program_state == ProgramState.IDLE:
             if previous_state != ProgramState.IDLE:
-                lcd.set_color(*WHITE)
-                lcd.set_cursor(*START_TOP_ROW)
-                lcd.message("READY FOR")
-                lcd.set_cursor(*START_BOTTOM_ROW)
-                lcd.message("FIRST RUNNER!")
+                set_display(lcd, WHITE, "READY FOR", "FIRST RUNNER!")
 
             if NAME_BUTTON_PRESSED:
                 next_state = ProgramState.NAME_ENTRY
@@ -190,9 +189,10 @@ def logic_loop():
 
         elif program_state == ProgramState.READY_TO_GO:
             if previous_state != ProgramState.READY_TO_GO:
-                set_name_and_time(lcd, YELLOW, runner_name, 0)
+                set_display(lcd, YELLOW, 0, runner_name)
 
-            # start executing lasers early, so there's not a big time penalty at the beginning
+            # start executing lasers early, otherwise they report as
+            # broken on startup of the TIMING loop
             beams_broken, penalties, laser_times = laser_beam_penalties(laser_times,
                                                                         light_sensors,
                                                                         penalties,
@@ -203,38 +203,41 @@ def logic_loop():
 
         elif program_state == ProgramState.TIMING:
             if previous_state != ProgramState.TIMING:
-                lcd.set_color(*GREEN)
                 start_time = time.time()
                 laser_times = [start_time for _ in range(len(light_sensors))]
                 penalties = 0
 
+            current_time = time.time()
             beams_broken, penalties, laser_times = laser_beam_penalties(laser_times,
                                                                         light_sensors,
                                                                         penalties,
                                                                         time.time())
 
-            if any(beams_broken):
-                lcd.set_color(*RED)
+            if any(beams_broken) and (current_time - start_time) >= STARTUP_DELAY:
+                color = RED
                 GPIO.output(BUZZER_PIN, True)
             else:
-                lcd.set_color(*GREEN)
+                color = GREEN
                 GPIO.output(BUZZER_PIN, False)
 
-            duration = time.time() - start_time + (penalties * TRIP_TIME_PENALTY)
+            raw_duration = current_time - start_time
+            duration = raw_duration + (penalties * TRIP_TIME_PENALTY)
 
-            lcd.set_cursor(*START_TOP_ROW)
-            lcd.message(format_time(duration))
+            set_display(lcd, color, format_time(duration), runner_name)
 
             if TIMER_BUTTON_PRESSED:
-                last_duration = duration
                 next_state = ProgramState.JUST_FINISHED
             else:
                 time.sleep(LDR_QUERY_DELAY)
 
         elif program_state == ProgramState.JUST_FINISHED:
             if previous_state != ProgramState.JUST_FINISHED:
-                set_name_and_time(lcd, WHITE, runner_name, last_duration)
-                write_attempt_to_file(runner_name, last_duration, penalties, TRIP_TIME_PENALTY)
+                set_display(lcd, WHITE, duration, runner_name)
+                write_attempt_to_file(runner_name,
+                                      duration,
+                                      raw_duration,
+                                      penalties,
+                                      TRIP_TIME_PENALTY)
 
             if NAME_BUTTON_PRESSED:
                 next_state = ProgramState.NAME_ENTRY
@@ -250,15 +253,13 @@ def format_time(duration: float):
     return str(datetime.timedelta(seconds=duration))[2:9]
 
 
-def write_attempt_to_file(runner_name, last_duration, penalties, penalty_trip_time):
+def write_attempt_to_file(*items):
     with open(RESULTS_FILE, 'a') as times_file:
         run_writer = csv.writer(times_file)
-        run_writer.writerow(
-            [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-             runner_name,
-             last_duration,
-             penalties,
-             penalty_trip_time])
+        row_to_write = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+        for item in items:
+            row_to_write.append(item)
+        run_writer.writerow(row_to_write)
 
 
 if __name__ == "__main__":
