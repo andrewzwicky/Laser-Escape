@@ -200,7 +200,8 @@ def logic_loop():
                                                                         light_sensors,
                                                                         penalties,
                                                                         time.time())
-
+            # This is important to make sure the LDRs don't get messed up
+            time.sleep(LDR_QUERY_DELAY)
             if TIMER_BUTTON_PRESSED:
                 next_state = ProgramState.TIMING
 
