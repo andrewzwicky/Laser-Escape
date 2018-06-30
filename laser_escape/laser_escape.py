@@ -44,6 +44,7 @@ START_BOTTOM_ROW = (0, 1)
 # Thresholds & Timers
 TRIP_TIME_PENALTY = 5
 LDR_QUERY_DELAY = 0.005
+STARTUP_DELAY = 0.4
 
 RESULTS_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'times.csv')
 
@@ -158,7 +159,6 @@ def logic_loop():
     light_sensors = setup()
 
     lcd = Adafruit_CharLCDPlate()
-    lcd.create_char(1, [0, 31, 31, 31, 31, 31, 0, 0])
 
     program_state = ProgramState.READY_TO_GO
     next_state = ProgramState.READY_TO_GO
@@ -166,6 +166,9 @@ def logic_loop():
 
     runner_name = ''
     start_time = None
+
+    raw_duration = 0
+    duration = 0
 
     penalties = 0
     laser_times = [0 for _ in range(len(light_sensors))]
@@ -209,33 +212,38 @@ def logic_loop():
                                range(len(light_sensors))]
                 penalties = 0
 
+            current_time = time.time()
             beams_broken, penalties, laser_times = laser_beam_penalties(laser_times,
                                                                         light_sensors,
                                                                         penalties,
                                                                         time.time())
 
-            if any(beams_broken):
+            if any(beams_broken) and (current_time - start_time) >= STARTUP_DELAY:
                 lcd.set_color(*RED)
                 GPIO.output(BUZZER_PIN, True)
             else:
                 lcd.set_color(*GREEN)
                 GPIO.output(BUZZER_PIN, False)
 
-            duration = time.time() - start_time + (penalties * TRIP_TIME_PENALTY)
+            raw_duration = current_time - start_time
+            duration = raw_duration + (penalties * TRIP_TIME_PENALTY)
 
             lcd.set_cursor(*START_TOP_ROW)
             lcd.message(format_time(duration))
 
             if TIMER_BUTTON_PRESSED:
-                last_duration = duration
                 next_state = ProgramState.JUST_FINISHED
             else:
                 time.sleep(LDR_QUERY_DELAY)
 
         elif program_state == ProgramState.JUST_FINISHED:
             if previous_state != ProgramState.JUST_FINISHED:
-                set_name_and_time(lcd, WHITE, runner_name, last_duration)
-                write_attempt_to_file(runner_name, last_duration, penalties, TRIP_TIME_PENALTY)
+                set_name_and_time(lcd, WHITE, runner_name, duration)
+                write_attempt_to_file(runner_name,
+                                      duration,
+                                      raw_duration,
+                                      penalties,
+                                      TRIP_TIME_PENALTY)
 
             if NAME_BUTTON_PRESSED:
                 next_state = ProgramState.NAME_ENTRY
@@ -251,15 +259,13 @@ def format_time(duration: float):
     return str(datetime.timedelta(seconds=duration))[2:9]
 
 
-def write_attempt_to_file(runner_name, last_duration, penalties, penalty_trip_time):
+def write_attempt_to_file(*items):
     with open(RESULTS_FILE, 'a') as times_file:
         run_writer = csv.writer(times_file)
-        run_writer.writerow(
-            [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-             runner_name,
-             last_duration,
-             penalties,
-             penalty_trip_time])
+        row_to_write = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+        for item in items:
+            row_to_write.append(item)
+        run_writer.writerow(row_to_write)
 
 
 if __name__ == "__main__":
