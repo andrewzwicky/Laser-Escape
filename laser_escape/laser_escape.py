@@ -147,7 +147,7 @@ def set_display(lcd, color, top_row, bottom_row):
     lcd.clear()
     lcd.set_color(*color)
     lcd.set_cursor(*START_TOP_ROW)
-    lcd.message(top_row)
+    lcd.message(format_time(top_row))
     lcd.set_cursor(*START_BOTTOM_ROW)
     lcd.message(bottom_row)
 
@@ -189,7 +189,7 @@ def logic_loop():
 
         elif program_state == ProgramState.READY_TO_GO:
             if previous_state != ProgramState.READY_TO_GO:
-                set_display(lcd, YELLOW, format(0), runner_name)
+                set_display(lcd, YELLOW, 0, runner_name)
 
             # start executing lasers early, otherwise they report as
             # broken on startup of the TIMING loop
@@ -232,7 +232,7 @@ def logic_loop():
 
         elif program_state == ProgramState.JUST_FINISHED:
             if previous_state != ProgramState.JUST_FINISHED:
-                set_display(lcd, WHITE, format_time(duration), runner_name)
+                set_display(lcd, WHITE, duration, runner_name)
                 write_attempt_to_file(runner_name,
                                       duration,
                                       raw_duration,
