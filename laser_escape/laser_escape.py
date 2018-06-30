@@ -12,7 +12,7 @@ from getch import getch
 from gpiozero import LightSensor
 
 # Pins
-from laser_beam_detection import laser_beam_penalties
+from laser_beam_detection import laser_beam_penalties, LASER_BREAK_BOUNCE_TIME
 
 BUZZER_PIN = 22
 LDR_PINS = [18, 24, 12, 19, 5, 16, 23, 26, 13]
@@ -205,7 +205,8 @@ def logic_loop():
             if previous_state != ProgramState.TIMING:
                 lcd.set_color(*GREEN)
                 start_time = time.time()
-                laser_times = [start_time for _ in range(len(light_sensors))]
+                laser_times = [start_time - 2 * LASER_BREAK_BOUNCE_TIME for _ in
+                               range(len(light_sensors))]
                 penalties = 0
 
             beams_broken, penalties, laser_times = laser_beam_penalties(laser_times,
