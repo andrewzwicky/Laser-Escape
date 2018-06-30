@@ -160,9 +160,9 @@ def logic_loop():
 
     lcd = Adafruit_CharLCDPlate()
 
-    program_state = ProgramState.READY_TO_GO
-    next_state = ProgramState.READY_TO_GO
-    previous_state = ProgramState.NAME_ENTRY
+    program_state = ProgramState.IDLE
+    next_state = ProgramState.IDLE
+    previous_state = None
 
     runner_name = ''
     start_time = None
