@@ -37,9 +37,6 @@ WHITE = (1, 1, 1)
 PURPLE = (1, 0, 1)
 YELLOW = (1, 1, 0)
 
-RECORD_COLORS = [RED, GREEN, BLUE, PURPLE]
-RECORD_TIME_COLOR_DWELL = 0.5 #seconds
-
 # LCD Positions
 START_TOP_ROW = (0, 0)
 START_BOTTOM_ROW = (0, 1)
@@ -91,12 +88,16 @@ def setup():
                           callback=name_entry_press_loop,
                           bouncetime=250)
 
+    light_sensors = [LightSensor(pin) for pin in LDR_PINS]
+
+    return light_sensors
+
 
 def get_best_record():
     try:
         with open(RESULTS_FILE, 'r') as times_file:
             run_reader = csv.reader(times_file)
-            times = [row[2] for row in run_reader] # third item should be time
+            times = [row[-1] for row in run_reader]
         return float(min(times)) if times else None
 
     except FileNotFoundError:
@@ -155,7 +156,7 @@ def logic_loop():
     global TIMER_BUTTON_PRESSED
     global NAME_BUTTON_PRESSED
 
-    setup()
+    light_sensors = setup()
 
     lcd = Adafruit_CharLCDPlate()
 
@@ -168,6 +169,9 @@ def logic_loop():
 
     raw_duration = 0
     duration = 0
+
+    penalties = 0
+    laser_times = [0 for _ in range(len(light_sensors))]
 
     while True:
         if program_state != previous_state:
@@ -189,10 +193,15 @@ def logic_loop():
 
         elif program_state == ProgramState.READY_TO_GO:
             if previous_state != ProgramState.READY_TO_GO:
-                record = get_best_record()
-                new_record = False
                 set_name_and_time(lcd, YELLOW, runner_name, 0)
 
+            # start executing lasers early, so there's not a big time penalty at the beginning
+            beams_broken, penalties, laser_times = laser_beam_penalties(laser_times,
+                                                                        light_sensors,
+                                                                        penalties,
+                                                                        time.time())
+            # This is important to make sure the LDRs don't get messed up
+            time.sleep(LDR_QUERY_DELAY)
             if TIMER_BUTTON_PRESSED:
                 next_state = ProgramState.TIMING
 
@@ -200,9 +209,25 @@ def logic_loop():
             if previous_state != ProgramState.TIMING:
                 lcd.set_color(*GREEN)
                 start_time = time.time()
+                laser_times = [start_time - 2 * LASER_BREAK_BOUNCE_TIME for _ in
+                               range(len(light_sensors))]
+                penalties = 0
 
             current_time = time.time()
-            duration = current_time - start_time
+            beams_broken, penalties, laser_times = laser_beam_penalties(laser_times,
+                                                                        light_sensors,
+                                                                        penalties,
+                                                                        time.time())
+
+            if any(beams_broken) and (current_time - start_time) >= STARTUP_DELAY:
+                lcd.set_color(*RED)
+                GPIO.output(BUZZER_PIN, True)
+            else:
+                lcd.set_color(*GREEN)
+                GPIO.output(BUZZER_PIN, False)
+
+            raw_duration = current_time - start_time
+            duration = raw_duration + (penalties * TRIP_TIME_PENALTY)
 
             lcd.set_cursor(*START_TOP_ROW)
             lcd.message(format_time(duration))
@@ -215,18 +240,11 @@ def logic_loop():
         elif program_state == ProgramState.JUST_FINISHED:
             if previous_state != ProgramState.JUST_FINISHED:
                 set_name_and_time(lcd, WHITE, runner_name, duration)
-                write_attempt_to_file(runner_name, duration)
-            
-                if record is None or (duration < record):
-                    new_record = True
-                    color_index = 0
-                    record_color_time_swap = time.time()
-            
-            if new_record and (record_color_time_swap < time.time()):
-                lcd.set_color(*RECORD_COLORS[color_index])
-                record_color_time_swap = time.time() + RECORD_TIME_COLOR_DWELL
-                color_index = (color_index + 1) % len(RECORD_COLORS)
-                
+                write_attempt_to_file(runner_name,
+                                      duration,
+                                      raw_duration,
+                                      penalties,
+                                      TRIP_TIME_PENALTY)
 
             if NAME_BUTTON_PRESSED:
                 next_state = ProgramState.NAME_ENTRY
