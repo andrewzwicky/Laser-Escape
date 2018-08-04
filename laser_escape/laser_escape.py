@@ -37,6 +37,9 @@ WHITE = (1, 1, 1)
 PURPLE = (1, 0, 1)
 YELLOW = (1, 1, 0)
 
+RECORD_COLORS = [RED, GREEN, BLUE, PURPLE]
+RECORD_TIME_COLOR_DWELL = 0.5 #seconds
+
 # LCD Positions
 START_TOP_ROW = (0, 0)
 START_BOTTOM_ROW = (0, 1)
@@ -97,7 +100,7 @@ def get_best_record():
     try:
         with open(RESULTS_FILE, 'r') as times_file:
             run_reader = csv.reader(times_file)
-            times = [row[-1] for row in run_reader]
+            times = [row[2] for row in run_reader] # third item should be time
         return float(min(times)) if times else None
 
     except FileNotFoundError:
@@ -193,6 +196,8 @@ def logic_loop():
 
         elif program_state == ProgramState.READY_TO_GO:
             if previous_state != ProgramState.READY_TO_GO:
+                record = get_best_record()
+                new_record = False
                 set_name_and_time(lcd, YELLOW, runner_name, 0)
 
             # start executing lasers early, so there's not a big time penalty at the beginning
@@ -245,6 +250,16 @@ def logic_loop():
                                       raw_duration,
                                       penalties,
                                       TRIP_TIME_PENALTY)
+
+                if record is None or (duration < record):
+                    new_record = True
+                    color_index = 0
+                    record_color_time_swap = time.time()
+
+            if new_record and (record_color_time_swap < time.time()):
+                lcd.set_color(*RECORD_COLORS[color_index])
+                record_color_time_swap = time.time() + RECORD_TIME_COLOR_DWELL
+                color_index = (color_index + 1) % len(RECORD_COLORS)
 
             if NAME_BUTTON_PRESSED:
                 next_state = ProgramState.NAME_ENTRY
